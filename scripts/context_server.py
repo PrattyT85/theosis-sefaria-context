@@ -239,6 +239,14 @@ async def lookup_sefaria_text(ref: str, language: str = "english", version_title
 
 
 @mcp.tool()
+async def lookup_sefaria_lexicon(word: str, lexicon: str = "Jastrow",
+                                 refresh: bool = False) -> str:
+    """Look up a Hebrew/Aramaic word in a Sefaria dictionary via the cache."""
+    ref = f"{lexicon}, {word.strip()}"
+    return await lookup_sefaria_text(ref, language="english", refresh=refresh, max_age_days=365)
+
+
+@mcp.tool()
 async def list_context_works(category: str | None = None, language: str | None = None) -> str:
     """List locally imported context works and edition coverage."""
     p = await pool()

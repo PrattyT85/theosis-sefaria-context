@@ -58,6 +58,8 @@ python scripts/sefaria_import.py --mishnah
 - `get_targum_text`
 - `get_context_corpus_summary`
 - `get_context_import_history`
+- `lookup_sefaria_text`
+- `lookup_sefaria_lexicon`
 
 Results must label Targum as an Aramaic interpretive translation, not as the Hebrew biblical text.
 
