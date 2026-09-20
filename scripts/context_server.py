@@ -139,7 +139,8 @@ def flatten_remote_text(value: Any) -> str:
 
 def remote_version_payload(data: dict[str, Any], language: str, version_title: str | None) -> dict[str, Any] | None:
     versions = data.get("versions") or []
-    candidates = [v for v in versions if (v.get("language") or "").lower() == language.lower()]
+    wanted = {"english": "en", "hebrew": "he", "en": "en", "he": "he"}.get(language.lower(), language.lower())
+    candidates = [v for v in versions if (v.get("language") or "").lower() == wanted]
     if version_title:
         candidates = [v for v in candidates if v.get("versionTitle") == version_title]
     return candidates[0] if candidates else None
