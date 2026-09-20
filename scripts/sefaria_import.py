@@ -42,6 +42,13 @@ def metadata_for(title: str, version_title: str) -> dict[str, Any]:
 
 
 def flatten(text: dict[str, Any], title: str) -> list[tuple[str, tuple[str, ...], str]]:
+    """Flatten cltk-flat text dict into (ref, path_tuple, text) records.
+
+    Handles variable-depth section paths:
+    - 2 parts: "Work 1:1" (chapter:verse for Targum/Mishnah)
+    - 3 parts: "Work 1:1:1" (e.g. Philo chapter:paragraph)
+    - 4 parts: "Work 1:1:1:1" (e.g. Josephus book:chapter:paragraph)
+    """
     records = []
     for raw_path, value in text.items():
         if not isinstance(value, str) or not value.strip():
@@ -53,9 +60,11 @@ def flatten(text: dict[str, Any], title: str) -> list[tuple[str, tuple[str, ...]
             if not match:
                 raise ValueError(f"Unexpected Sefaria path for {title}: {raw_path}")
             numbers.append(int(match.group(1)) + 1)
-        if len(numbers) != 2:
-            raise ValueError(f"Expected chapter/verse path for {title}: {raw_path}")
-        records.append((f"{title} {numbers[0]}:{numbers[1]}", tuple(parts), value.strip()))
+        if len(numbers) < 2:
+            raise ValueError(f"Expected at least 2 section parts for {title}: {raw_path}")
+        # Build ref with colon-separated section numbers
+        ref = f"{title} {':'.join(str(n) for n in numbers)}"
+        records.append((ref, tuple(parts), value.strip()))
     refs = [row[0] for row in records]
     if len(refs) != len(set(refs)):
         raise ValueError(f"Reference collision in {title}")
@@ -109,7 +118,7 @@ MISHNAH_WORKS = [
 ]
 JONATHAN_BOOKS = ["Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy"]
 JONATHAN_PROPHETS = {
-    "Isaiah": "London \"Chaldee Paraphrase,\" 1871",
+    "Isaiah": "London Chaldee Paraphrase, 1871",
     "Jeremiah": None,
     "Ezekiel": None,
     "I Samuel": None,
@@ -119,10 +128,62 @@ JONATHAN_PROPHETS = {
     "Micah": None,
     "Malachi": "Sefaria Community Translation",
     "Zechariah": None,
+    "I Kings": None,
+    "II Kings": None,
+    "Amos": None,
+    "Obadiah": None,
+    "Joel": None,
+    "Habakkuk": None,
+    "Zephaniah": None,
+    "Haggai": None,
 }
 
 # Exact versions verified through the Sefaria v3 metadata API.
 JONATHAN_ENGLISH = "The Targum of Jonathan ben Uzziel, trans. J. W. Etheridge, London, 1862"
+
+# Josephus works with approved licences (Public Domain or CC0/CC-BY only).
+# "The Antiquities of the Jews" English is CC-BY-SA (not approved); only Hebrew PD is available.
+# "Against Apion" is CC-BY-SA only (not approved).
+JOSEPHUS_WORKS = [
+    {
+        "title": "The War of the Jews",
+        "categories": ["Second Temple", "Josephus", "Historical"],
+        "role": "historical_context",
+        "editions": [
+            ("en", "The War of the Jews, translated by William Whiston", "Public Domain"),
+            ("he", "The Jewish Wars, trans. Y.N. Simhoni, Warsaw, 1923", "Public Domain"),
+        ],
+    },
+    {
+        "title": "The Antiquities of the Jews",
+        "categories": ["Second Temple", "Josephus", "Historical"],
+        "role": "historical_context",
+        "editions": [
+            ("he", "Yemei am olam, trans. Kalman Schulman. Vilna, 1886", "Public Domain"),
+        ],
+    },
+]
+
+# Philo works with approved licences (all Loeb Classical Library, Harvard University Press = Public Domain).
+# Exact version titles verified through Sefaria Export catalog.
+PHILO_WORKS = [
+    ("Concerning Noah's Work as a Planter", "Loeb Classical Library, Harvard University Press, 1930"),
+    ("Every Good Man is Free", "Loeb Classical Library, Harvard University Press, 1941"),
+    ("On Abraham", "Loeb Classical Library, Harvard University Press, 1935"),
+    ("On Joseph", "Loeb Classical Library, Harvard University Press, 1935"),
+    ("On the Decalogue", "Loeb Classical Library, Harvard University Press, 1937"),
+    ("On the Life of Moses", "Loeb Classical Library, Harvard University Press, 1935"),
+    ("Allegorical Interpretation of Genesis", "Loeb Classical Library, Harvard University Press, 1929"),
+    ("On the Special Laws", "Loeb Classical Library, Harvard University Press, 1937"),
+    ("On Dreams", "Loeb Classical Library, Harvard University Press, 1934"),
+    ("On the Confusion of Tongues", "Loeb Classical Library, Harvard University Press, 1932"),
+    ("On the Migration of Abraham", "Loeb Classical Library, Harvard University Press, 1932"),
+    ("On Flight and Finding", "Loeb Classical Library, Harvard University Press, 1934"),
+    ("On Husbandry", "Loeb Classical Library, Harvard University Press, 1930"),
+    ("On Drunkenness", "Loeb Classical Library, Harvard University Press, 1930"),
+    ("On the Giants", "Loeb Classical Library, Harvard University Press, 1929"),
+    ("On the Eternity of the World", "Loeb Classical Library, Harvard University Press, 1941"),
+]
 
 
 def import_work(cur, catalog, title: str, categories: list[str], role: str,
@@ -163,9 +224,11 @@ def main() -> None:
     parser.add_argument("--mishnah", action="store_true", help="Import selected Mishnah context works")
     parser.add_argument("--jonathan", action="store_true", help="Import Targum Jonathan on the Torah")
     parser.add_argument("--jonathan-prophets", action="store_true", help="Import selected Targum Jonathan prophetic books")
+    parser.add_argument("--josephus", action="store_true", help="Import approved Josephus editions")
+    parser.add_argument("--philo", action="store_true", help="Import approved Philo editions")
     args = parser.parse_args()
-    if not args.onkelos and not args.mishnah and not args.jonathan and not args.jonathan_prophets:
-        parser.error("select an import set: --onkelos, --mishnah, --jonathan, or --jonathan-prophets")
+    if not any([args.onkelos, args.mishnah, args.jonathan, args.jonathan_prophets, args.josephus, args.philo]):
+        parser.error("select an import set: --onkelos, --mishnah, --jonathan, --jonathan-prophets, --josephus, or --philo")
     catalog = fetch_json(BOOKS_JSON).get("books", [])
     export_at = datetime.now(timezone.utc).isoformat()
     with psycopg2.connect(args.db) as conn:
@@ -199,6 +262,14 @@ def main() -> None:
                     if english_version:
                         approved.append(("en", english_version, "Public Domain" if book == "Isaiah" else "CC0"))
                     import_work(cur, catalog, title, ["Tanakh", "Targum", "Targum Jonathan", "Prophets"], "primary_text", approved, export_at)
+            if args.josephus:
+                for work in JOSEPHUS_WORKS:
+                    import_work(cur, catalog, work["title"], work["categories"], work["role"], work["editions"], export_at)
+            if args.philo:
+                for title, version_title in PHILO_WORKS:
+                    import_work(cur, catalog, title, ["Second Temple", "Philo", "Philosophy"], "historical_context", [
+                        ("en", version_title, "Public Domain"),
+                    ], export_at)
         conn.commit()
 
 

@@ -11,13 +11,15 @@ A separate, provenance-first MCP service for high-value Sefaria context used in 
 
 ## Current local corpus
 
-Targum Onkelos on Genesis, Exodus, Leviticus, Numbers, and Deuteronomy; Targum Jonathan on the Torah; plus selected Mishnah:
+Targum Onkelos on the Torah, Targum Jonathan on the Torah and selected Prophets, selected Mishnah, and approved historical context works:
 
 - Onkelos: Public Domain Aramaic editions and CC0 English where exact API metadata confirms coverage.
 - Mishnah: Berakhot, Pesachim, Yoma, Sanhedrin, and Pirkei Avot.
 - Mishnah Hebrew: `Torat Emet 357`, Public Domain.
 - Mishnah English: Sefaria Community Translation (CC0) where available, otherwise `Mishnah Yomit by Dr. Joshua Kulp` (CC-BY).
-- Metsudah 2009 editions are not part of the default corpus because Sefaria identifies them as `CC-BY-NC`.
+- Josephus: *The War of the Jews* Public Domain English/Hebrew; *The Antiquities of the Jews* Public Domain Hebrew only.
+- Philo: approved Public Domain Loeb English editions where exact API metadata confirms coverage.
+- Metsudah 2009 editions and CC-BY-SA/CC-BY-NC editions are not part of the default corpus.
 
 All version choices are made from Sefaria API metadata at import time and saved in the ingestion manifest.
 
@@ -39,6 +41,8 @@ python scripts/sefaria_import.py --onkelos
 python scripts/sefaria_import.py --jonathan
 python scripts/sefaria_import.py --jonathan-prophets
 python scripts/sefaria_import.py --mishnah
+python scripts/sefaria_import.py --josephus
+python scripts/sefaria_import.py --philo
 ```
 
 ## Import
@@ -50,6 +54,8 @@ python scripts/sefaria_import.py --onkelos
 python scripts/sefaria_import.py --jonathan
 python scripts/sefaria_import.py --jonathan-prophets
 python scripts/sefaria_import.py --mishnah
+python scripts/sefaria_import.py --josephus
+python scripts/sefaria_import.py --philo
 ```
 
 ## MCP tools
