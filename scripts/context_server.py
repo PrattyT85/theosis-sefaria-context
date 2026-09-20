@@ -317,8 +317,8 @@ async def get_context_text(ref: str, language: str = "he", edition: str | None =
 @mcp.tool()
 async def get_targum_text(ref: str, targum: str = "Onkelos", language: str = "he") -> str:
     """Retrieve a Targum passage and label it as an interpretive translation."""
-    row = await fetch_text(ref, language, targum, preview=False)
-    if not row:
+    row = await fetch_text(ref, language, None, preview=False)
+    if not row or targum.lower() not in row["work_title"].lower():
         return f"Targum passage not found locally: {ref} ({targum}, {language})."
     return "## Targum — interpretive translation\n\n" + format_result(dict(row))
 
