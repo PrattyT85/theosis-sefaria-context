@@ -104,46 +104,65 @@ def import_edition(cur, work_id: int, title: str, language: str, version_title: 
     return count
 
 
+MISHNAH_WORKS = [
+    "Mishnah Berakhot", "Mishnah Pesachim", "Mishnah Yoma", "Mishnah Sanhedrin", "Pirkei Avot"
+]
+
+
+def import_work(cur, catalog, title: str, categories: list[str], role: str,
+                approved: list[tuple[str, str, str]], export_at: str) -> None:
+    cur.execute("""INSERT INTO works(sefaria_title,hebrew_title,categories,role,source_url,metadata)
+                   VALUES(%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT(sefaria_title) DO UPDATE SET metadata=works.metadata || EXCLUDED.metadata
+                   RETURNING id""",
+                (title, None, categories, role, f"https://www.sefaria.org/{title.replace(' ', '_')}",
+                 Json({"selection": "approved Sefaria Context editions"})))
+    work_id = cur.fetchone()[0]
+    for language, version_title, expected_license in approved:
+        matches = [b for b in catalog if b.get("title") == title and b.get("language") == ("Hebrew" if language == "he" else "English") and b.get("versionTitle") == version_title]
+        if not matches:
+            print("SKIP", title, language, version_title, "not in export catalog", flush=True)
+            continue
+        meta = metadata_for(title, version_title)
+        if not meta:
+            print("SKIP", title, language, version_title, "exact API metadata unavailable", flush=True)
+            continue
+        actual_license = meta.get("license") or expected_license
+        if actual_license != expected_license:
+            raise RuntimeError(f"Licence mismatch for {title} / {version_title}: expected {expected_license}, got {actual_license}")
+        count = import_edition(cur, work_id, title, language, version_title, actual_license, matches[0]["cltk_flat_url"], export_at)
+        print("IMPORTED", title, language, version_title, count, actual_license, flush=True)
+        return
+    print("NO APPROVED EDITION", title, flush=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", default=database_url())
     parser.add_argument("--onkelos", action="store_true", help="Import approved Onkelos editions")
+    parser.add_argument("--mishnah", action="store_true", help="Import selected Mishnah context works")
     args = parser.parse_args()
-    if not args.onkelos:
-        parser.error("select an import set, currently --onkelos")
+    if not args.onkelos and not args.mishnah:
+        parser.error("select an import set: --onkelos or --mishnah")
     catalog = fetch_json(BOOKS_JSON).get("books", [])
     export_at = datetime.now(timezone.utc).isoformat()
     with psycopg2.connect(args.db) as conn:
         conn.set_client_encoding("UTF8")
         with conn.cursor() as cur:
-            for book in BOOKS:
-                title = f"Onkelos {book}"
-                cur.execute("""INSERT INTO works(sefaria_title,hebrew_title,categories,role,source_url,metadata)
-                               VALUES(%s,%s,%s,%s,%s,%s)
-                               ON CONFLICT(sefaria_title) DO UPDATE SET metadata=works.metadata || EXCLUDED.metadata
-                               RETURNING id""",
-                            (title, None, ["Tanakh", "Targum", "Onkelos", "Torah"], "primary_text",
-                             f"https://www.sefaria.org/{title.replace(' ', '_')}", Json({"selection": "approved Onkelos public-domain/CC0 editions"})))
-                work_id = cur.fetchone()[0]
-                approved = [
-                    ("Hebrew", title, "Public Domain"),
-                    ("English", "Sefaria Community Translation", "CC0"),
-                ]
-                for language_name, version_title, expected_license in approved:
-                    language = "he" if language_name == "Hebrew" else "en"
-                    matches = [b for b in catalog if b.get("title") == title and b.get("language") == language_name and b.get("versionTitle") == version_title]
-                    if not matches:
-                        print("SKIP", title, language_name, version_title, "not in export catalog", flush=True)
-                        continue
-                    meta = metadata_for(title, version_title)
-                    if not meta:
-                        print("SKIP", title, language_name, version_title, "exact API metadata unavailable", flush=True)
-                        continue
-                    actual_license = meta.get("license") or expected_license
-                    if actual_license != expected_license:
-                        raise RuntimeError(f"Licence mismatch for {title} / {version_title}: expected {expected_license}, got {actual_license}")
-                    count = import_edition(cur, work_id, title, language, version_title, actual_license, matches[0]["cltk_flat_url"], export_at)
-                    print("IMPORTED", title, language, version_title, count, actual_license, flush=True)
+            if args.onkelos:
+                for book in BOOKS:
+                    title = f"Onkelos {book}"
+                    import_work(cur, catalog, title, ["Tanakh", "Targum", "Onkelos", "Torah"], "primary_text", [
+                        ("he", title, "Public Domain"),
+                        ("en", "Sefaria Community Translation", "CC0"),
+                    ], export_at)
+            if args.mishnah:
+                for title in MISHNAH_WORKS:
+                    import_work(cur, catalog, title, ["Mishnah"], "rabbinic_context", [
+                        ("he", "Torat Emet 357", "Public Domain"),
+                        ("en", "Sefaria Community Translation", "CC0"),
+                        ("en", "Mishnah Yomit by Dr. Joshua Kulp", "CC-BY"),
+                    ], export_at)
         conn.commit()
 
 
