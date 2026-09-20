@@ -122,6 +122,12 @@ http://<host>:8002/mcp
 
 The cache is the preferred path for rare Jastrow, Rashi, Ibn Ezra, Josephus, Philo, and long-tail Sefaria queries. It avoids mirroring the entire library and keeps retrieval bounded.
 
+## Documentation
+
+- [Architecture](docs/architecture.md) — local tier, on-demand cache, source roles, and data flow.
+- [Live inventory](docs/live-inventory.md) — deployment and corpus snapshot.
+- [schema.sql](schema.sql) — UTF-8 baseline schema.
+
 ## Schema and migrations
 
 - [schema.sql](schema.sql) — UTF-8 baseline schema.
