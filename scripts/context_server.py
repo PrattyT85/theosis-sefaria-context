@@ -248,10 +248,11 @@ async def lookup_sefaria_lexicon(word: str, lexicon: str = "Jastrow",
 
 @mcp.tool()
 async def lookup_sefaria_commentary(commentator: str, work: str, section: str,
-                                    language: str = "english", refresh: bool = False) -> str:
+                                    language: str = "english", version_title: str | None = None,
+                                    refresh: bool = False) -> str:
     """Retrieve Jewish commentary on a biblical passage and label it as commentary."""
     ref = f"{commentator} on {work} {section}"
-    result = await lookup_sefaria_text(ref, language=language, refresh=refresh, max_age_days=90)
+    result = await lookup_sefaria_text(ref, language=language, version_title=version_title, refresh=refresh, max_age_days=90)
     return "## Jewish commentary — not the primary biblical text\n\n" + result
 
 
