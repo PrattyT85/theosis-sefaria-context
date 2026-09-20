@@ -32,7 +32,8 @@ python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements.lock
 export SEFARIA_CONTEXT_DATABASE_URL='postgresql://sefaria_context@/sefaria_context?host=/var/run/postgresql'
-python scripts/migrate.py
+sudo -u postgres env SEFARIA_CONTEXT_DATABASE_URL=postgresql:///sefaria_context?host=/var/run/postgresql python scripts/migrate.py
+python scripts/sefaria_import.py --onkelos
 ```
 
 ## Import

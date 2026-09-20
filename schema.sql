@@ -99,5 +99,6 @@ $$;
 CREATE INDEX segments_hebrew_trgm_idx
     ON segments USING gin (normalize_context_hebrew(text) gin_trgm_ops);
 
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO sefaria_context;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO sefaria_context;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO sefaria_context;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO sefaria_context;
