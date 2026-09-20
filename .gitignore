@@ -1,0 +1,14 @@
+__pycache__/
+.pytest_cache/
+.coverage
+*.py[cod]
+.venv/
+.env
+*.log
+*.swp
+.DS_Store
+# Downloaded Sefaria exports and local database artefacts
+data/
+exports/
+*.dump
+*.backup

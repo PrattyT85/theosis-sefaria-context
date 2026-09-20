@@ -1,0 +1,23 @@
+[Unit]
+Description=Theosis Sefaria Context MCP Server
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=sefaria_context
+Group=sefaria_context
+WorkingDirectory=/opt/theosis-sefaria-context
+Environment=SEFARIA_CONTEXT_DATABASE_URL=postgresql://sefaria_context@/sefaria_context?host=/var/run/postgresql
+Environment=SEFARIA_CONTEXT_HOST=192.168.1.130
+Environment=SEFARIA_CONTEXT_PORT=8002
+ExecStart=/opt/theosis-sefaria-context/.venv/bin/python /opt/theosis-sefaria-context/scripts/context_server.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/theosis-sefaria-context
+
+[Install]
+WantedBy=multi-user.target
