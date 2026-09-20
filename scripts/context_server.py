@@ -247,6 +247,15 @@ async def lookup_sefaria_lexicon(word: str, lexicon: str = "Jastrow",
 
 
 @mcp.tool()
+async def lookup_sefaria_commentary(commentator: str, work: str, section: str,
+                                    language: str = "english", refresh: bool = False) -> str:
+    """Retrieve Jewish commentary on a biblical passage and label it as commentary."""
+    ref = f"{commentator} on {work} {section}"
+    result = await lookup_sefaria_text(ref, language=language, refresh=refresh, max_age_days=90)
+    return "## Jewish commentary — not the primary biblical text\n\n" + result
+
+
+@mcp.tool()
 async def list_context_works(category: str | None = None, language: str | None = None) -> str:
     """List locally imported context works and edition coverage."""
     p = await pool()
