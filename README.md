@@ -9,13 +9,15 @@ A separate, provenance-first MCP service for high-value Sefaria context used in 
 - Planned MCP endpoint: `http://192.168.1.130:8002/mcp`.
 - Every edition records exact Sefaria reference/version, language, licence, source URL, retrieval/import timestamps, and SHA-256 payload hash.
 
-## First local corpus
+## Current local corpus
 
-Targum Onkelos on Genesis, Exodus, Leviticus, Numbers, and Deuteronomy:
+Targum Onkelos on Genesis, Exodus, Leviticus, Numbers, and Deuteronomy, plus selected Mishnah:
 
-- Hebrew/Aramaic: prefer the Sefaria version explicitly marked `Public Domain`.
-- English: use `Sefaria Community Translation` only where the API confirms coverage and `CC0`.
-- Do not ingest the Metsudah 2009 edition into the default local corpus because Sefaria identifies it as `CC-BY-NC`.
+- Onkelos: Public Domain Aramaic editions and CC0 English where exact API metadata confirms coverage.
+- Mishnah: Berakhot, Pesachim, Yoma, Sanhedrin, and Pirkei Avot.
+- Mishnah Hebrew: `Torat Emet 357`, Public Domain.
+- Mishnah English: Sefaria Community Translation (CC0) where available, otherwise `Mishnah Yomit by Dr. Joshua Kulp` (CC-BY).
+- Metsudah 2009 editions are not part of the default corpus because Sefaria identifies them as `CC-BY-NC`.
 
 All version choices are made from Sefaria API metadata at import time and saved in the ingestion manifest.
 
