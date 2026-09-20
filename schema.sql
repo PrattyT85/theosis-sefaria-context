@@ -70,8 +70,8 @@ CREATE TABLE source_links (
 CREATE TABLE cache_entries (
     id bigserial PRIMARY KEY,
     ref text NOT NULL,
-    language text,
-    version_title text,
+    language text NOT NULL,
+    version_title text NOT NULL,
     payload jsonb NOT NULL,
     source_url text NOT NULL,
     license text,
@@ -82,6 +82,7 @@ CREATE TABLE cache_entries (
 );
 
 CREATE INDEX cache_entries_lookup_idx ON cache_entries(ref, language, version_title);
+CREATE INDEX cache_entries_expires_idx ON cache_entries(expires_at) WHERE expires_at IS NOT NULL;
 CREATE INDEX segments_search_idx ON segments USING gin(search_vector);
 CREATE INDEX segments_ref_idx ON segments(edition_id, sefaria_ref);
 CREATE INDEX segments_work_idx ON segments(work_id, sefaria_ref);

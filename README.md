@@ -61,6 +61,10 @@ python scripts/sefaria_import.py --mishnah
 
 Results must label Targum as an Aramaic interpretive translation, not as the Hebrew biblical text.
 
+## On-demand cache
+
+`lookup_sefaria_text` retrieves exact Sefaria references outside the local corpus and caches only requested passages. The cache records the selected edition, licence, source URL, retrieval time, expiry time, and SHA-256 hash. Only `Public Domain`, `CC0`, and `CC-BY` editions are cached. Default maximum freshness is 365 days for Public Domain and 90 days for CC0/CC-BY; callers can request a shorter TTL or force refresh.
+
 ## Licensing
 
 Sefaria licences apply per edition and language. The importer stores licence and source metadata and does not silently treat an unknown or non-approved edition as reusable local data. See Sefaria's licence guidance and API metadata before adding editions.

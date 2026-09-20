@@ -21,6 +21,8 @@ DB_URL = os.environ.get("SEFARIA_CONTEXT_DATABASE_URL", "postgresql://sefaria_co
 HOST = os.environ.get("SEFARIA_CONTEXT_HOST", "0.0.0.0")
 PORT = int(os.environ.get("SEFARIA_CONTEXT_PORT", "8002"))
 logger = logging.getLogger("sefaria-context-mcp")
+ALLOWED_LICENSES = {"Public Domain", "CC0", "CC-BY"}
+CACHE_TTL_DAYS = {"Public Domain": 365, "CC0": 90, "CC-BY": 90}
 
 mcp = FastMCP(
     "sefaria-context",
@@ -192,10 +194,14 @@ async def lookup_remote_or_cache(ref: str, language: str, version_title: str | N
 
     selected, source_url = await fetch_remote_text(ref, language, version_title)
     version = selected["version"]
+    license_name = version.get("license")
+    if license_name not in ALLOWED_LICENSES:
+        raise ValueError(f"Licence is not approved for local caching: {license_name or 'not specified'}")
     payload_bytes = json.dumps(selected, ensure_ascii=False, sort_keys=True).encode("utf-8")
     digest = hashlib.sha256(payload_bytes).hexdigest()
     retrieved = datetime.now(timezone.utc)
-    expires = retrieved + timedelta(days=max(1, min(max_age_days, 365)))
+    ttl_days = min(max(1, max_age_days), CACHE_TTL_DAYS[license_name])
+    expires = retrieved + timedelta(days=ttl_days)
     await p.execute("""
         INSERT INTO cache_entries(ref,language,version_title,payload,source_url,license,retrieved_at,expires_at,content_sha256)
         VALUES($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9)
