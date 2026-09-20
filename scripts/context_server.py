@@ -190,7 +190,7 @@ async def lookup_remote_or_cache(ref: str, language: str, version_title: str | N
                 ORDER BY retrieved_at DESC LIMIT 1
             """, ref, language)
         if row:
-            return {"payload": row["payload"], "source_url": row["source_url"], "license": row["license"], "content_sha256": row["content_sha256"], "retrieved_at": row["retrieved_at"]}, True
+            return {"payload": metadata_dict(row["payload"]), "source_url": row["source_url"], "license": row["license"], "content_sha256": row["content_sha256"], "retrieved_at": row["retrieved_at"]}, True
 
     selected, source_url = await fetch_remote_text(ref, language, version_title)
     version = selected["version"]
