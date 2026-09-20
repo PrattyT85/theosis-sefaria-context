@@ -38,9 +38,7 @@ def metadata_for(title: str, version_title: str) -> dict[str, Any]:
     ref = f"{title} 1:1"
     data = fetch_json(API + urllib.parse.quote(ref, safe=""))
     matches = [v for v in data.get("available_versions", []) if v.get("versionTitle") == version_title]
-    if not matches:
-        raise RuntimeError(f"Sefaria metadata has no exact version: {ref} / {version_title}")
-    return matches[0]
+    return matches[0] if matches else None
 
 
 def flatten(text: dict[str, Any], title: str) -> list[tuple[str, tuple[str, ...], str]]:
@@ -138,6 +136,9 @@ def main() -> None:
                         print("SKIP", title, language_name, version_title, "not in export catalog", flush=True)
                         continue
                     meta = metadata_for(title, version_title)
+                    if not meta:
+                        print("SKIP", title, language_name, version_title, "exact API metadata unavailable", flush=True)
+                        continue
                     actual_license = meta.get("license") or expected_license
                     if actual_license != expected_license:
                         raise RuntimeError(f"Licence mismatch for {title} / {version_title}: expected {expected_license}, got {actual_license}")
