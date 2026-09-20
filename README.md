@@ -11,7 +11,7 @@ A separate, provenance-first MCP service for high-value Sefaria context used in 
 
 ## Current local corpus
 
-Targum Onkelos on Genesis, Exodus, Leviticus, Numbers, and Deuteronomy, plus selected Mishnah:
+Targum Onkelos on Genesis, Exodus, Leviticus, Numbers, and Deuteronomy; Targum Jonathan on the Torah; plus selected Mishnah:
 
 - Onkelos: Public Domain Aramaic editions and CC0 English where exact API metadata confirms coverage.
 - Mishnah: Berakhot, Pesachim, Yoma, Sanhedrin, and Pirkei Avot.
@@ -36,6 +36,8 @@ python -m pip install -r requirements.lock
 export SEFARIA_CONTEXT_DATABASE_URL='postgresql://sefaria_context@/sefaria_context?host=/var/run/postgresql'
 sudo -u postgres env SEFARIA_CONTEXT_DATABASE_URL=postgresql:///sefaria_context?host=/var/run/postgresql python scripts/migrate.py
 python scripts/sefaria_import.py --onkelos
+python scripts/sefaria_import.py --jonathan
+python scripts/sefaria_import.py --mishnah
 ```
 
 ## Import
@@ -44,6 +46,8 @@ The importer queries Sefaria metadata first, rejects unapproved licences, downlo
 
 ```bash
 python scripts/sefaria_import.py --onkelos
+python scripts/sefaria_import.py --jonathan
+python scripts/sefaria_import.py --mishnah
 ```
 
 ## MCP tools

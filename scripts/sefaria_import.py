@@ -107,6 +107,10 @@ def import_edition(cur, work_id: int, title: str, language: str, version_title: 
 MISHNAH_WORKS = [
     "Mishnah Berakhot", "Mishnah Pesachim", "Mishnah Yoma", "Mishnah Sanhedrin", "Pirkei Avot"
 ]
+JONATHAN_BOOKS = ["Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy"]
+
+# Exact versions verified through the Sefaria v3 metadata API.
+JONATHAN_ENGLISH = "The Targum of Jonathan ben Uzziel, trans. J. W. Etheridge, London, 1862"
 
 
 def import_work(cur, catalog, title: str, categories: list[str], role: str,
@@ -145,9 +149,10 @@ def main() -> None:
     parser.add_argument("--db", default=database_url())
     parser.add_argument("--onkelos", action="store_true", help="Import approved Onkelos editions")
     parser.add_argument("--mishnah", action="store_true", help="Import selected Mishnah context works")
+    parser.add_argument("--jonathan", action="store_true", help="Import Targum Jonathan on the Torah")
     args = parser.parse_args()
-    if not args.onkelos and not args.mishnah:
-        parser.error("select an import set: --onkelos or --mishnah")
+    if not args.onkelos and not args.mishnah and not args.jonathan:
+        parser.error("select an import set: --onkelos, --mishnah, or --jonathan")
     catalog = fetch_json(BOOKS_JSON).get("books", [])
     export_at = datetime.now(timezone.utc).isoformat()
     with psycopg2.connect(args.db) as conn:
@@ -166,6 +171,13 @@ def main() -> None:
                         ("he", "Torat Emet 357", "Public Domain"),
                         ("en", "Sefaria Community Translation", "CC0"),
                         ("en", "Mishnah Yomit by Dr. Joshua Kulp", "CC-BY"),
+                    ], export_at)
+            if args.jonathan:
+                for book in JONATHAN_BOOKS:
+                    title = f"Targum Jonathan on {book}"
+                    import_work(cur, catalog, title, ["Tanakh", "Targum", "Targum Jonathan"], "primary_text", [
+                        ("he", title, "Public Domain"),
+                        ("en", JONATHAN_ENGLISH, "Public Domain"),
                     ], export_at)
         conn.commit()
 
