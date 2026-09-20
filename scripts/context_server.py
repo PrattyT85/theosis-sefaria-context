@@ -223,7 +223,7 @@ async def lookup_sefaria_text(ref: str, language: str = "english", version_title
         return f"Sefaria lookup failed for {ref}: {exc}"
     payload = result["payload"]
     version = payload["version"]
-    text = flatten_remote_text(version.get("text"))
+    text = clean(flatten_remote_text(version.get("text")))
     status = "cached" if cached else "fetched from Sefaria"
     return (
         f"## Remote Sefaria result ({status})\n\n"
