@@ -1,29 +1,65 @@
 # Theosis Sefaria Context MCP
 
-A separate, provenance-first MCP service for high-value Sefaria context used in Bible study. It is intentionally selective: the local tier starts with Targum Onkelos, while long-tail Sefaria works will be retrieved and cached on demand.
+A separate, provenance-first MCP service for high-value Sefaria context used in Bible study. It is part of the Theosis ecosystem but is intentionally separate from both the Bible database and the Midrash database.
 
-## Scope
+## Related repositories
 
-- Separate from Theosis Bible and Theosis Midrash.
-- UTF-8 PostgreSQL database: `sefaria_context`.
-- Planned MCP endpoint: `http://192.168.1.130:8002/mcp`.
-- Every edition records exact Sefaria reference/version, language, licence, source URL, retrieval/import timestamps, and SHA-256 payload hash.
+- [theosis-mcp](https://github.com/PrattyT85/theosis-mcp) — Bible texts, translations, Christian commentaries, lexicons, and theology; MCP port 8000.
+- [theosis-midrash](https://github.com/PrattyT85/theosis-midrash) — local Jewish Midrash corpus and source links; MCP port 8001.
+- **theosis-sefaria-context** — this repository; selected Targumim, Mishnah, historical context, commentary lookup, lexicons, and Sefaria cache; MCP port 8002.
 
-## Current local corpus
+## Current live deployment
 
-Targum Onkelos on the Torah, Targum Jonathan on the Torah and selected Prophets, selected Mishnah, and approved historical context works:
+- Database: PostgreSQL `sefaria_context` on CT125
+- MCP endpoint: `http://192.168.1.130:8002/mcp`
+- Health: `http://192.168.1.130:8002/health`
+- Service: `sefaria-context.service`
+- Service account: `sefaria_context`
+- Encoding: UTF-8
+- Schema migration: `002`
+- Snapshot: 43 works, 54 editions, 28,689 segments, 54 import manifests
 
-- Onkelos: Public Domain Aramaic editions and CC0 English where exact API metadata confirms coverage.
-- Mishnah: Berakhot, Pesachim, Yoma, Sanhedrin, and Pirkei Avot.
-- Mishnah Hebrew: `Torat Emet 357`, Public Domain.
-- Mishnah English: Sefaria Community Translation (CC0) where available, otherwise `Mishnah Yomit by Dr. Joshua Kulp` (CC-BY).
-- Josephus: *The War of the Jews* Public Domain English/Hebrew; *The Antiquities of the Jews* Public Domain Hebrew only.
-- Philo: approved Public Domain Loeb English editions where exact API metadata confirms coverage.
-- Metsudah 2009 editions and CC-BY-SA/CC-BY-NC editions are not part of the default corpus.
+Counts are operational snapshots; use `get_context_corpus_summary` or `/health` for current values.
 
-All version choices are made from Sefaria API metadata at import time and saved in the ingestion manifest.
+## What is local
 
-## Installation
+The local Context tier currently contains:
+
+- Targum Onkelos on the Torah
+- Targum Jonathan on the Torah and selected Prophets
+- Selected Mishnah: Berakhot, Pesachim, Yoma, Sanhedrin, and Pirkei Avot
+- Approved Public Domain Josephus and Philo editions where exact Sefaria metadata matched
+
+The service also provides on-demand, licence-filtered cache lookup for long-tail Sefaria material such as Jastrow, Rashi, and Ibn Ezra. It does not attempt to mirror the whole Sefaria library.
+
+## MCP tools
+
+| Tool | Purpose | Main inputs |
+|---|---|---|
+| `list_context_works` | List locally imported Context works and edition coverage. | `category`, `language` |
+| `get_context_text` | Retrieve a complete locally imported passage. | `ref`, `language`, optional `edition` |
+| `get_targum_text` | Retrieve and label Targum as an interpretive translation. | `ref`, `targum`, `language` |
+| `search_context` | Search local Context text with bounded lexical/Hebrew retrieval. | `query`, `work`, `language`, `limit` |
+| `get_context_corpus_summary` | Report local coverage and schema version. | `limit` |
+| `get_context_import_history` | Report imported editions, licences, hashes, and source URLs. | `limit` |
+| `lookup_sefaria_text` | Fetch/cache an exact Sefaria passage outside the local corpus. | `ref`, `language`, optional `version_title`, `refresh` |
+| `lookup_sefaria_lexicon` | Fetch/cache Jastrow or another dictionary entry. | `word`, `lexicon`, `refresh` |
+| `lookup_sefaria_commentary` | Fetch/cache Jewish commentary such as Rashi or Ibn Ezra. | `commentator`, `work`, `section`, `language`, optional `version_title` |
+
+Every result identifies work, reference, edition, language, licence, source URL, retrieval/import time, and SHA-256 hash where available.
+
+## Requirements
+
+- PostgreSQL 16+
+- UTF-8 database
+- Python 3.11+
+- `asyncpg`, `psycopg2-binary`, MCP Python SDK
+- `pg_trgm` PostgreSQL extension
+- Network access to Sefaria API/export sources
+
+Use `requirements.lock` for deployment and `requirements-dev.lock` for development/testing.
+
+## Fresh installation
 
 ```bash
 sudo -u postgres psql <<'SQL'
@@ -36,18 +72,15 @@ python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements.lock
 export SEFARIA_CONTEXT_DATABASE_URL='postgresql://sefaria_context@/sefaria_context?host=/var/run/postgresql'
+
+# Migrations require database-admin privileges for DDL.
+sudo -u postgres env SEFARIA_CONTEXT_DATABASE_URL=postgresql:///sefaria_context?host=/var/run/postgresql python scripts/migrate.py --status
 sudo -u postgres env SEFARIA_CONTEXT_DATABASE_URL=postgresql:///sefaria_context?host=/var/run/postgresql python scripts/migrate.py
-python scripts/sefaria_import.py --onkelos
-python scripts/sefaria_import.py --jonathan
-python scripts/sefaria_import.py --jonathan-prophets
-python scripts/sefaria_import.py --mishnah
-python scripts/sefaria_import.py --josephus
-python scripts/sefaria_import.py --philo
 ```
 
-## Import
+## Import workflow
 
-The importer queries Sefaria metadata first, rejects unapproved licences, downloads the selected exact versions, records the payload hash, and validates reference uniqueness:
+The importer queries Sefaria metadata before downloading, rejects unapproved licences, hashes payloads, validates reference uniqueness, and records exact source URLs.
 
 ```bash
 python scripts/sefaria_import.py --onkelos
@@ -58,24 +91,54 @@ python scripts/sefaria_import.py --josephus
 python scripts/sefaria_import.py --philo
 ```
 
-## MCP tools
+Approved editions are selected by exact Sefaria API metadata. Unknown, CC-BY-SA, and CC-BY-NC editions are not silently imported into the default local corpus.
 
-- `list_context_works`
-- `get_context_text`
-- `search_context`
-- `get_targum_text`
-- `get_context_corpus_summary`
-- `get_context_import_history`
-- `lookup_sefaria_text`
-- `lookup_sefaria_lexicon`
-- `lookup_sefaria_commentary`
+## Deployment
 
-Results must label Targum as an Aramaic interpretive translation, not as the Hebrew biblical text.
+Use [deploy/sefaria-context.service](deploy/sefaria-context.service) as the systemd template. It runs as the dedicated `sefaria_context` user, uses systemd sandboxing, and binds to the configured LAN address.
+
+```bash
+sudo cp deploy/sefaria-context.service /etc/systemd/system/sefaria-context.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now sefaria-context.service
+curl http://127.0.0.1:8002/health
+```
+
+The endpoint has no application authentication. It is intended for a secured home LAN and should use a firewall or authenticated reverse proxy if the network threat model changes.
+
+## Hermes Desktop and other clients
+
+Enable `theosis_sefaria_context` in the dedicated Hermes `theosis_ai` profile, alongside `theosis` and `theosis_midrash`. Start a new profile session after configuration changes.
+
+For another MCP client, add:
+
+```text
+http://<host>:8002/mcp
+```
 
 ## On-demand cache
 
-`lookup_sefaria_text` retrieves exact Sefaria references outside the local corpus and caches only requested passages. The cache records the selected edition, licence, source URL, retrieval time, expiry time, and SHA-256 hash. Only `Public Domain`, `CC0`, and `CC-BY` editions are cached. Default maximum freshness is 365 days for Public Domain and 90 days for CC0/CC-BY; callers can request a shorter TTL or force refresh.
+`lookup_sefaria_text` retrieves exact Sefaria references outside the local corpus and caches only requested passages. Cache records include edition, licence, source URL, retrieval time, expiry, and SHA-256 hash. Only Public Domain, CC0, and CC-BY editions are cached. Public Domain entries may remain fresh for up to 365 days; CC0/CC-BY entries default to 90 days.
 
-## Licensing
+The cache is the preferred path for rare Jastrow, Rashi, Ibn Ezra, Josephus, Philo, and long-tail Sefaria queries. It avoids mirroring the entire library and keeps retrieval bounded.
 
-Sefaria licences apply per edition and language. The importer stores licence and source metadata and does not silently treat an unknown or non-approved edition as reusable local data. See Sefaria's licence guidance and API metadata before adding editions.
+## Schema and migrations
+
+- [schema.sql](schema.sql) — UTF-8 baseline schema.
+- [migrations/](migrations/) — numbered cache/schema migrations.
+- [scripts/migrate.py](scripts/migrate.py) — ordered, checksum-tracked migration runner.
+
+The `works.role` field distinguishes primary texts, rabbinic context, historical context, and other source roles. `cache_entries` stores remote passages separately from the local corpus.
+
+## Licensing and source policy
+
+Sefaria licensing applies to each edition and language independently. The importer records exact licence metadata and rejects unapproved editions. The repository contains code and import definitions, not a bundled database dump or downloaded source corpus. Check Sefaria’s licence guidance before redistributing any cached or imported text.
+
+## Development and verification
+
+```bash
+.venv/bin/pytest -q
+.venv/bin/python -m compileall -q scripts tests
+```
+
+GitHub Actions runs tests and compile checks on Python 3.11 and 3.13.
