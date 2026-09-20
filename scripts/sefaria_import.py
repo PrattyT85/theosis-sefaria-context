@@ -34,9 +34,13 @@ def fetch_bytes(url: str) -> bytes:
         return response.read()
 
 
-def metadata_for(title: str, version_title: str) -> dict[str, Any]:
+def metadata_for(title: str, version_title: str) -> dict[str, Any] | None:
     ref = f"{title} 1:1"
-    data = fetch_json(API + urllib.parse.quote(ref, safe=""))
+    try:
+        data = fetch_json(API + urllib.parse.quote(ref, safe=""))
+    except Exception as exc:
+        print("SKIP", ref, version_title, type(exc).__name__, flush=True)
+        return None
     matches = [v for v in data.get("available_versions", []) if v.get("versionTitle") == version_title]
     return matches[0] if matches else None
 
