@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import html
 import json
 import logging
 import os
 import re
+import urllib.parse
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import asyncpg
+import httpx
 from mcp.server.fastmcp import FastMCP
 
 DB_URL = os.environ.get("SEFARIA_CONTEXT_DATABASE_URL", "postgresql://sefaria_context@/sefaria_context?host=/var/run/postgresql")
@@ -123,6 +127,108 @@ async def health(request):
     except Exception:
         logger.exception("Health check failed")
         return JSONResponse({"status": "error", "service": "sefaria-context-mcp"}, status_code=503)
+
+
+def flatten_remote_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return "\n".join(flatten_remote_text(item) for item in value if item not in (None, ""))
+    return str(value) if value is not None else ""
+
+
+def remote_version_payload(data: dict[str, Any], language: str, version_title: str | None) -> dict[str, Any] | None:
+    versions = data.get("versions") or []
+    candidates = [v for v in versions if (v.get("language") or "").lower() == language.lower()]
+    if version_title:
+        candidates = [v for v in candidates if v.get("versionTitle") == version_title]
+    return candidates[0] if candidates else None
+
+
+async def fetch_remote_text(ref: str, language: str, version_title: str | None) -> tuple[dict[str, Any], str]:
+    api_url = "https://www.sefaria.org/api/v3/texts/" + urllib.parse.quote(ref, safe="")
+    params = {"version": language}
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+        response = await client.get(api_url, params=params, headers={"User-Agent": "theosis-sefaria-context/0.1", "Accept": "application/json"})
+        response.raise_for_status()
+        data = response.json()
+    version = remote_version_payload(data, language, version_title)
+    if not version:
+        available = [v.get("versionTitle") for v in data.get("available_versions", []) if (v.get("language") or "").lower() == language.lower()]
+        raise ValueError(f"No exact {language} version returned for {ref}; available versions: {available[:10]}")
+    selected = {
+        "ref": data.get("ref") or ref,
+        "heRef": data.get("heRef"),
+        "title": data.get("title") or data.get("book"),
+        "categories": data.get("categories") or [],
+        "version": version,
+    }
+    return selected, str(response.url)
+
+
+async def lookup_remote_or_cache(ref: str, language: str, version_title: str | None,
+                                 refresh: bool, max_age_days: int) -> tuple[dict[str, Any], bool]:
+    p = await pool()
+    if not refresh:
+        if version_title:
+            row = await p.fetchrow("""
+                SELECT payload,source_url,license,content_sha256,retrieved_at
+                FROM cache_entries
+                WHERE ref=$1 AND language=$2 AND version_title=$3
+                  AND (expires_at IS NULL OR expires_at > now())
+                ORDER BY retrieved_at DESC LIMIT 1
+            """, ref, language, version_title)
+        else:
+            row = await p.fetchrow("""
+                SELECT payload,source_url,license,content_sha256,retrieved_at
+                FROM cache_entries
+                WHERE ref=$1 AND language=$2
+                  AND (expires_at IS NULL OR expires_at > now())
+                ORDER BY retrieved_at DESC LIMIT 1
+            """, ref, language)
+        if row:
+            return {"payload": row["payload"], "source_url": row["source_url"], "license": row["license"], "content_sha256": row["content_sha256"], "retrieved_at": row["retrieved_at"]}, True
+
+    selected, source_url = await fetch_remote_text(ref, language, version_title)
+    version = selected["version"]
+    payload_bytes = json.dumps(selected, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    digest = hashlib.sha256(payload_bytes).hexdigest()
+    retrieved = datetime.now(timezone.utc)
+    expires = retrieved + timedelta(days=max(1, min(max_age_days, 365)))
+    await p.execute("""
+        INSERT INTO cache_entries(ref,language,version_title,payload,source_url,license,retrieved_at,expires_at,content_sha256)
+        VALUES($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9)
+        ON CONFLICT(ref,language,version_title) DO UPDATE SET
+          payload=EXCLUDED.payload,source_url=EXCLUDED.source_url,license=EXCLUDED.license,
+          retrieved_at=EXCLUDED.retrieved_at,expires_at=EXCLUDED.expires_at,content_sha256=EXCLUDED.content_sha256
+    """, ref, language, version.get("versionTitle"), json.dumps(selected, ensure_ascii=False), source_url,
+                  version.get("license"), retrieved, expires, digest)
+    return {"payload": selected, "source_url": source_url, "license": version.get("license"), "content_sha256": digest, "retrieved_at": retrieved}, False
+
+
+@mcp.tool()
+async def lookup_sefaria_text(ref: str, language: str = "english", version_title: str | None = None,
+                              refresh: bool = False, max_age_days: int = 30) -> str:
+    """Fetch and cache an exact Sefaria passage outside the local corpus."""
+    try:
+        result, cached = await lookup_remote_or_cache(ref, language, version_title, refresh, max_age_days)
+    except (httpx.HTTPError, ValueError) as exc:
+        return f"Sefaria lookup failed for {ref}: {exc}"
+    payload = result["payload"]
+    version = payload["version"]
+    text = flatten_remote_text(version.get("text"))
+    status = "cached" if cached else "fetched from Sefaria"
+    return (
+        f"## Remote Sefaria result ({status})\n\n"
+        f"Reference: **{payload.get('ref') or ref}**\n"
+        f"Work: {payload.get('title') or 'not recorded'}\n"
+        f"Language: {version.get('language')} | Edition: {version.get('versionTitle')}\n"
+        f"Licence: {result.get('license') or 'not specified'}\n"
+        f"Source: {result['source_url']}\n"
+        f"Retrieved: {result['retrieved_at']}\n"
+        f"SHA-256: {result['content_sha256']}\n\n"
+        f"{text}"
+    )
 
 
 @mcp.tool()
