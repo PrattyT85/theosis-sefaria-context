@@ -118,7 +118,10 @@ def import_work(cur, catalog, title: str, categories: list[str], role: str,
                 (title, None, categories, role, f"https://www.sefaria.org/{title.replace(' ', '_')}",
                  Json({"selection": "approved Sefaria Context editions"})))
     work_id = cur.fetchone()[0]
+    imported_languages: set[str] = set()
     for language, version_title, expected_license in approved:
+        if language in imported_languages:
+            continue
         matches = [b for b in catalog if b.get("title") == title and b.get("language") == ("Hebrew" if language == "he" else "English") and b.get("versionTitle") == version_title]
         if not matches:
             print("SKIP", title, language, version_title, "not in export catalog", flush=True)
@@ -132,8 +135,9 @@ def import_work(cur, catalog, title: str, categories: list[str], role: str,
             raise RuntimeError(f"Licence mismatch for {title} / {version_title}: expected {expected_license}, got {actual_license}")
         count = import_edition(cur, work_id, title, language, version_title, actual_license, matches[0]["cltk_flat_url"], export_at)
         print("IMPORTED", title, language, version_title, count, actual_license, flush=True)
-        return
-    print("NO APPROVED EDITION", title, flush=True)
+        imported_languages.add(language)
+    if not imported_languages:
+        print("NO APPROVED EDITION", title, flush=True)
 
 
 def main() -> None:
