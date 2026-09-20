@@ -108,6 +108,18 @@ MISHNAH_WORKS = [
     "Mishnah Berakhot", "Mishnah Pesachim", "Mishnah Yoma", "Mishnah Sanhedrin", "Pirkei Avot"
 ]
 JONATHAN_BOOKS = ["Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy"]
+JONATHAN_PROPHETS = {
+    "Isaiah": "London \"Chaldee Paraphrase,\" 1871",
+    "Jeremiah": None,
+    "Ezekiel": None,
+    "I Samuel": None,
+    "II Samuel": None,
+    "Jonah": "Sefaria Community Translation",
+    "Hosea": None,
+    "Micah": None,
+    "Malachi": "Sefaria Community Translation",
+    "Zechariah": None,
+}
 
 # Exact versions verified through the Sefaria v3 metadata API.
 JONATHAN_ENGLISH = "The Targum of Jonathan ben Uzziel, trans. J. W. Etheridge, London, 1862"
@@ -150,9 +162,10 @@ def main() -> None:
     parser.add_argument("--onkelos", action="store_true", help="Import approved Onkelos editions")
     parser.add_argument("--mishnah", action="store_true", help="Import selected Mishnah context works")
     parser.add_argument("--jonathan", action="store_true", help="Import Targum Jonathan on the Torah")
+    parser.add_argument("--jonathan-prophets", action="store_true", help="Import selected Targum Jonathan prophetic books")
     args = parser.parse_args()
-    if not args.onkelos and not args.mishnah and not args.jonathan:
-        parser.error("select an import set: --onkelos, --mishnah, or --jonathan")
+    if not args.onkelos and not args.mishnah and not args.jonathan and not args.jonathan_prophets:
+        parser.error("select an import set: --onkelos, --mishnah, --jonathan, or --jonathan-prophets")
     catalog = fetch_json(BOOKS_JSON).get("books", [])
     export_at = datetime.now(timezone.utc).isoformat()
     with psycopg2.connect(args.db) as conn:
@@ -179,6 +192,13 @@ def main() -> None:
                         ("he", title, "Public Domain"),
                         ("en", JONATHAN_ENGLISH, "Public Domain"),
                     ], export_at)
+            if args.jonathan_prophets:
+                for book, english_version in JONATHAN_PROPHETS.items():
+                    title = f"Targum Jonathan on {book}"
+                    approved = [("he", "Mikraot Gedolot", "Public Domain")]
+                    if english_version:
+                        approved.append(("en", english_version, "Public Domain" if book == "Isaiah" else "CC0"))
+                    import_work(cur, catalog, title, ["Tanakh", "Targum", "Targum Jonathan", "Prophets"], "primary_text", approved, export_at)
         conn.commit()
 
 

@@ -37,6 +37,7 @@ export SEFARIA_CONTEXT_DATABASE_URL='postgresql://sefaria_context@/sefaria_conte
 sudo -u postgres env SEFARIA_CONTEXT_DATABASE_URL=postgresql:///sefaria_context?host=/var/run/postgresql python scripts/migrate.py
 python scripts/sefaria_import.py --onkelos
 python scripts/sefaria_import.py --jonathan
+python scripts/sefaria_import.py --jonathan-prophets
 python scripts/sefaria_import.py --mishnah
 ```
 
@@ -47,6 +48,7 @@ The importer queries Sefaria metadata first, rejects unapproved licences, downlo
 ```bash
 python scripts/sefaria_import.py --onkelos
 python scripts/sefaria_import.py --jonathan
+python scripts/sefaria_import.py --jonathan-prophets
 python scripts/sefaria_import.py --mishnah
 ```
 
